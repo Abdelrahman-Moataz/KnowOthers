@@ -1,0 +1,2 @@
+# KnowOthers
+Rating others personality 
