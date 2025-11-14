@@ -35,9 +35,10 @@ class _MainPageState extends State<MainPage> {
       appBar: AppBar(
         title: const Text('Users'),
         actions: [
+          // In MainPage appBar actions:
           IconButton(
-            icon: const Icon(Icons.account_circle),
-            onPressed: () => Navigator.pushNamed(context, '/account'),
+            icon: const Icon(Icons.person),
+            onPressed: () => Navigator.pushNamed(context, '/profile'),
           ),
         ],
       ),

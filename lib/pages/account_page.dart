@@ -74,10 +74,10 @@ class _AccountPageState extends State<AccountPage> {
             },
           ),
           ElevatedButton(onPressed: 
-          () => context.read<AuthCubit>().signOut(),
-           child: const Text('Logout'), 
+          () => context.read<AuthCubit>().signOut(), 
            style: ElevatedButton.styleFrom(backgroundColor:
-            Colors.red)).animate().fadeIn(delay: 1000.ms),
+            Colors.red),
+           child: const Text('Logout')).animate().fadeIn(delay: 1000.ms),
         ],
       ),
     );

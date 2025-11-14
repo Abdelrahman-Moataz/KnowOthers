@@ -1,82 +1,65 @@
+// lib/pages/reset_password_page.dart
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_animate/flutter_animate.dart';
-import '../cubits/auth_cubit.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class ResetPasswordPage extends StatefulWidget {
   const ResetPasswordPage({super.key});
-
   @override
   State<ResetPasswordPage> createState() => _ResetPasswordPageState();
 }
 
 class _ResetPasswordPageState extends State<ResetPasswordPage> {
-  final _newPasswordController = TextEditingController();
+  final _emailCtrl = TextEditingController();
+  bool _sent = false;
+  String? _error;
 
-  @override
-  void dispose() {
-    _newPasswordController.dispose();
-    super.dispose();
+  Future<void> _sendReset() async {
+    final email = _emailCtrl.text.trim();
+    if (email.isEmpty) {
+      setState(() => _error = 'Enter your email');
+      return;
+    }
+
+    setState(() => _error = null);
+
+    try {
+      await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+      setState(() => _sent = true);
+    } on FirebaseAuthException catch (e) {
+      setState(() => _error = e.message ?? 'Failed to send reset email');
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return BlocListener<AuthCubit, AuthState>(
-      listener: (context, state) {
-        if (state is AuthError) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(state.message)),
-          );
-        } else if (state is AuthSuccess) {
-          Navigator.pushReplacementNamed(context, '/main');
-        }
-      },
-      child: Scaffold(
-        appBar: AppBar(title: const Text('Reset Password')),
-        body: SingleChildScrollView(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.key, size: 80, color: Colors.blue)
-                  .animate()
-                  .fade(duration: 500.ms)
-                  .slideY(),
-              const SizedBox(height: 32),
-              TextField(
-                controller: _newPasswordController,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'New Password',
-                  hintText: 'Enter new password',
-                  prefixIcon: Icon(Icons.lock_reset),
-                ),
-              )
-                  .animate()
-                  .fadeIn(delay: 200.ms)
-                  .slideY(),
-              const SizedBox(height: 24),
-              BlocBuilder<AuthCubit, AuthState>(
-                builder: (context, state) {
-                  if (state is AuthLoading) {
-                    return const CircularProgressIndicator();
-                  }
-                  return SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () => context.read<AuthCubit>().updatePassword(
-                            _newPasswordController.text.trim(),
-                          ),
-                      child: const Text('Update Password'),
-                    )
-                        .animate()
-                        .fadeIn(delay: 400.ms)
-                        .slideY(),
-                  );
-                },
+    return Scaffold(
+      appBar: AppBar(title: const Text('Reset Password')),
+      body: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            TextField(
+              controller: _emailCtrl,
+              keyboardType: TextInputType.emailAddress,
+              decoration: const InputDecoration(
+                labelText: 'Email',
+                border: OutlineInputBorder(),
               ),
-            ],
-          ),
+            ),
+            const SizedBox(height: 20),
+            if (_error != null)
+              Text(_error!, style: const TextStyle(color: Colors.red)),
+            const SizedBox(height: 12),
+            ElevatedButton(
+              onPressed: _sent ? null : _sendReset,
+              child: Text(_sent ? 'Email Sent – Check Inbox' : 'Send Reset Link'),
+            ),
+            const SizedBox(height: 12),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Back to Login'),
+            ),
+          ],
         ),
       ),
     );

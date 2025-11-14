@@ -1,3 +1,4 @@
+// lib/cubits/auth_cubit.dart
 import 'package:bloc/bloc.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -10,104 +11,75 @@ class AuthCubit extends Cubit<AuthState> {
   final _auth = FirebaseAuth.instance;
   final _firestore = FirebaseFirestore.instance;
 
-  Future<void> signIn(String email, String password) async {
-    if (email.isEmpty || password.isEmpty) {
-      emit(AuthError('Fill all fields'));
-      return;
-    }
-    emit(AuthLoading());
-    try {
-      await _auth.signInWithEmailAndPassword(email: email.trim(), password: password.trim());
-      emit(AuthSuccess());
-    } on FirebaseAuthException catch (e) {
-      emit(AuthError(e.message ?? 'Sign in failed'));
-    }
-  }
-
+  // ---------- EMAIL / PASSWORD ----------
   Future<void> signUp(String email, String password, String name) async {
-    if (email.isEmpty || password.isEmpty || name.isEmpty) {
-      emit(AuthError('All fields required'));
-      return;
-    }
     emit(AuthLoading());
     try {
-      final cred = await _auth.createUserWithEmailAndPassword(email: email.trim(), password: password.trim());
-      await _firestore.collection('users').doc(cred.user!.uid).set({
-        'name': name.trim(),
-        'email': email.trim(),
-        'profilePic': null,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+      final cred = await _auth.createUserWithEmailAndPassword(
+          email: email.trim(), password: password.trim());
+      await _saveUserProfile(cred.user!, name: name);
       emit(AuthSuccess());
     } on FirebaseAuthException catch (e) {
       emit(AuthError(e.message ?? 'Signup failed'));
     }
   }
 
-Future<void> signInWithGoogle() async {
-  emit(AuthLoading());
-  try {
-    final googleUser = await GoogleSignIn().signIn();
-    if (googleUser == null) {
-      emit(AuthError('Sign-in cancelled'));
-      return;
+  Future<void> signIn(String email, String password) async {
+    emit(AuthLoading());
+    try {
+      await _auth.signInWithEmailAndPassword(
+          email: email.trim(), password: password.trim());
+      emit(AuthSuccess());
+    } on FirebaseAuthException catch (e) {
+      emit(AuthError(e.message ?? 'Sign-in failed'));
     }
+  }
 
-    final googleAuth = await googleUser.authentication;
-    final credential = GoogleAuthProvider.credential(
-      accessToken: googleAuth.accessToken,
-      idToken: googleAuth.idToken,
-    );
+  // ---------- GOOGLE SIGN-IN ----------
+  Future<void> signInWithGoogle() async {
+    emit(AuthLoading());
+    try {
+      final googleUser = await GoogleSignIn().signIn();
+      if (googleUser == null) {
+        emit(AuthError('Google sign-in cancelled'));
+        return;
+      }
 
-    final userCred = await _auth.signInWithCredential(credential);
+      final googleAuth = await googleUser.authentication;
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
 
-    // Save user profile
-    await _firestore.collection('users').doc(userCred.user!.uid).set({
-      'name': googleUser.displayName ?? 'User',
-      'email': googleUser.email,
-      'profilePic': googleUser.photoUrl,
+      final userCred = await _auth.signInWithCredential(credential);
+      await _saveUserProfile(
+        userCred.user!,
+        name: googleUser.displayName,
+        photoUrl: googleUser.photoUrl,
+      );
+
+      emit(AuthSuccess());
+    } on FirebaseAuthException catch (e) {
+      emit(AuthError(e.message ?? 'Google sign-in failed'));
+    } catch (e) {
+      emit(AuthError('Unexpected error: $e'));
+    }
+  }
+
+  // ---------- COMMON PROFILE SAVE ----------
+  Future<void> _saveUserProfile(User user,
+      {String? name, String? photoUrl}) async {
+    await _firestore.collection('users').doc(user.uid).set({
+      'name': name ?? user.displayName ?? 'Anonymous',
+      'email': user.email ?? '',
+      'photoUrl': photoUrl ?? user.photoURL ?? '',
       'createdAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
-
-    emit(AuthSuccess());
-  } on FirebaseAuthException catch (e) {
-    emit(AuthError(e.message ?? 'Auth failed'));
-  } catch (e) {
-    emit(AuthError('Error: $e'));
-  }
-}
-
-  Future<void> resetPassword(String email) async {
-    if (email.isEmpty) {
-      emit(AuthError('Email required'));
-      return;
-    }
-    emit(AuthLoading());
-    try {
-      await _auth.sendPasswordResetEmail(email: email.trim()); // FIXED
-      emit(AuthSuccess());
-    } on FirebaseAuthException catch (e) {
-      emit(AuthError(e.message ?? 'Reset failed'));
-    }
-  }
-
-  Future<void> updatePassword(String newPassword) async {
-    if (newPassword.isEmpty) {
-      emit(AuthError('Password required'));
-      return;
-    }
-    emit(AuthLoading());
-    try {
-      await _auth.currentUser!.updatePassword(newPassword.trim());
-      emit(AuthSuccess());
-    } on FirebaseAuthException catch (e) {
-      emit(AuthError(e.message ?? 'Update failed'));
-    }
   }
 
   Future<void> signOut() async {
-    emit(AuthLoading());
     await _auth.signOut();
+    await GoogleSignIn().signOut();
     emit(AuthInitial());
   }
 }

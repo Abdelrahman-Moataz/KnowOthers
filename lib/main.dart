@@ -1,6 +1,6 @@
 // lib/main.dart
 import 'dart:io';
-
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -8,6 +8,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:myapp/pages/profile_page.dart';
 
 import 'cubits/auth_cubit.dart';
 import 'cubits/user_cubit.dart';
@@ -23,12 +24,19 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   print("Background message: ${message.messageId}");
 }
 
+// =================== YOUR CODE + ERROR CAPTURE ===================
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // CATCH ALL FLUTTER ERRORS
+  FlutterError.onError = (FlutterErrorDetails details) {
+    FlutterError.dumpErrorToConsole(details);
+    if (kReleaseMode) exit(1);
+  };
+
   try {
     if (Platform.isAndroid) {
-      print("done");
+      print("Initializing Firebase for Android...");
       await Firebase.initializeApp(
         options: const FirebaseOptions(
           apiKey: "AIzaSyAErD7oG3owrkSuGcjWMP9_HnZi9FcYZBs",
@@ -43,14 +51,16 @@ void main() async {
     }
 
     print("Firebase initialized successfully");
-  } catch (e) {
-    print("Firebase init failed: $e");
+  } catch (e, s) {
+    print("Firebase init FAILED: $e");
+    print("Stacktrace: $s");
   }
 
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
   runApp(const RatingApp());
 }
+// ==================================================================
 
 class RatingApp extends StatefulWidget {
   const RatingApp({super.key});
@@ -115,10 +125,10 @@ class _RatingAppState extends State<RatingApp> {
         darkTheme: ThemeData.dark().copyWith(primaryColor: Colors.blueAccent),
         home:
             AuthWrapper(onThemeChanged: (v) => setState(() => _isDarkMode = v)),
+        // Inside MaterialApp routes:
         routes: {
           '/main': (_) => const MainPage(),
-          '/account': (_) => AccountPage(
-              onThemeChanged: (v) => setState(() => _isDarkMode = v)),
+          '/profile': (_) => ProfilePage(onThemeChanged: (v) => setState(() => _isDarkMode = v)),
           '/signup': (_) => const SignUpPage(),
           '/reset': (_) => const ResetPasswordPage(),
         },
@@ -128,6 +138,7 @@ class _RatingAppState extends State<RatingApp> {
   }
 }
 
+// FULL ERROR UI — NEVER MISS A FLASH ERROR
 class AuthWrapper extends StatelessWidget {
   final Function(bool) onThemeChanged;
   const AuthWrapper({super.key, required this.onThemeChanged});
@@ -137,6 +148,7 @@ class AuthWrapper extends StatelessWidget {
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
+        // LOADING
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
             body: Center(
@@ -144,20 +156,55 @@ class AuthWrapper extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   CircularProgressIndicator(),
-                  SizedBox(height: 16),
-                  Text("Initializing..."),
+                  SizedBox(height: 20),
+                  Text("Connecting to Firebase..."),
                 ],
               ),
             ),
           );
         }
 
+        // ERROR — SHOW FOREVER
         if (snapshot.hasError) {
           return Scaffold(
-            body: Center(child: Text("Error: ${snapshot.error}")),
+            appBar: AppBar(title: const Text("Login Error")),
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.error, color: Colors.red, size: 64),
+                    const SizedBox(height: 16),
+                    const Text(
+                      "Authentication Failed",
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 12),
+                    SelectableText(
+                      snapshot.error.toString(),
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                          color: Colors.red, fontFamily: 'monospace'),
+                    ),
+                    const SizedBox(height: 20),
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        FirebaseAuth.instance.signOut();
+                        Navigator.pushReplacementNamed(context, '/');
+                      },
+                      icon: const Icon(Icons.refresh),
+                      label: const Text("Retry Login"),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           );
         }
 
+        // SUCCESS → GO TO MAIN
         if (snapshot.hasData) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             Navigator.pushReplacementNamed(context, '/main');
@@ -165,6 +212,7 @@ class AuthWrapper extends StatelessWidget {
           return const SizedBox.shrink();
         }
 
+        // NO USER → SHOW LOGIN
         return AuthPage(onThemeChanged: onThemeChanged);
       },
     );
