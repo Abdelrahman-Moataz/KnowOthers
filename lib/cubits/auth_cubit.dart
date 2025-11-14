@@ -44,31 +44,38 @@ class AuthCubit extends Cubit<AuthState> {
     }
   }
 
-  Future<void> signInWithGoogle() async {
-    emit(AuthLoading());
-    try {
-      final googleUser = await GoogleSignIn().signIn();
-      if (googleUser == null) {
-        emit(AuthError('Cancelled'));
-        return;
-      }
-      final googleAuth = await googleUser.authentication;
-      final credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
-      );
-      final userCred = await _auth.signInWithCredential(credential);
-      await _firestore.collection('users').doc(userCred.user!.uid).set({
-        'name': googleUser.displayName,
-        'email': googleUser.email,
-        'profilePic': googleUser.photoUrl,
-        'createdAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-      emit(AuthSuccess());
-    } on FirebaseAuthException catch (e) {
-      emit(AuthError(e.message ?? 'Google sign-in failed'));
+Future<void> signInWithGoogle() async {
+  emit(AuthLoading());
+  try {
+    final googleUser = await GoogleSignIn().signIn();
+    if (googleUser == null) {
+      emit(AuthError('Sign-in cancelled'));
+      return;
     }
+
+    final googleAuth = await googleUser.authentication;
+    final credential = GoogleAuthProvider.credential(
+      accessToken: googleAuth.accessToken,
+      idToken: googleAuth.idToken,
+    );
+
+    final userCred = await _auth.signInWithCredential(credential);
+
+    // Save user profile
+    await _firestore.collection('users').doc(userCred.user!.uid).set({
+      'name': googleUser.displayName ?? 'User',
+      'email': googleUser.email,
+      'profilePic': googleUser.photoUrl,
+      'createdAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    emit(AuthSuccess());
+  } on FirebaseAuthException catch (e) {
+    emit(AuthError(e.message ?? 'Auth failed'));
+  } catch (e) {
+    emit(AuthError('Error: $e'));
   }
+}
 
   Future<void> resetPassword(String email) async {
     if (email.isEmpty) {

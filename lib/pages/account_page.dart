@@ -73,7 +73,11 @@ class _AccountPageState extends State<AccountPage> {
               return const Text('No ratings yet');
             },
           ),
-          ElevatedButton(onPressed: () => context.read<AuthCubit>().signOut(), child: const Text('Logout'), style: ElevatedButton.styleFrom(backgroundColor: Colors.red)).animate().fadeIn(delay: 1000.ms),
+          ElevatedButton(onPressed: 
+          () => context.read<AuthCubit>().signOut(),
+           child: const Text('Logout'), 
+           style: ElevatedButton.styleFrom(backgroundColor:
+            Colors.red)).animate().fadeIn(delay: 1000.ms),
         ],
       ),
     );

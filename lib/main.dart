@@ -1,3 +1,4 @@
+// lib/main.dart
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -7,6 +8,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+
 import 'cubits/auth_cubit.dart';
 import 'cubits/user_cubit.dart';
 import 'cubits/rating_cubit.dart';
@@ -18,30 +20,41 @@ import 'pages/account_page.dart';
 
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
+  print("Background message: ${message.messageId}");
 }
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  if (Platform.isAndroid) {
-    print("done");
-    await Firebase.initializeApp(
-      options: const FirebaseOptions(
-        apiKey: "AIzaSyAErD7oG3owrkSuGcjWMP9_HnZi9FcYZBs",
-        appId: "1:1018540097624:android:810ab649a493f70bf24a2d",
-        messagingSenderId: "1018540097624",
-        projectId: "b-fh-bbc87",
-        storageBucket: "b-fh-bbc87.appspot.com",
-      ),
-    );
-  } else {
-    await Firebase.initializeApp();
+
+  try {
+    if (Platform.isAndroid) {
+      print("done");
+      await Firebase.initializeApp(
+        options: const FirebaseOptions(
+          apiKey: "AIzaSyAErD7oG3owrkSuGcjWMP9_HnZi9FcYZBs",
+          appId: "1:1018540097624:android:810ab649a493f70bf24a2d",
+          messagingSenderId: "1018540097624",
+          projectId: "b-fh-bbc87",
+          storageBucket: "b-fh-bbc87.appspot.com",
+        ),
+      );
+    } else {
+      await Firebase.initializeApp();
+    }
+
+    print("Firebase initialized successfully");
+  } catch (e) {
+    print("Firebase init failed: $e");
   }
+
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
   runApp(const RatingApp());
 }
 
 class RatingApp extends StatefulWidget {
   const RatingApp({super.key});
+
   @override
   State<RatingApp> createState() => _RatingAppState();
 }
@@ -59,6 +72,8 @@ class _RatingAppState extends State<RatingApp> {
     final messaging = FirebaseMessaging.instance;
     await messaging.requestPermission();
     final token = await messaging.getToken();
+    print("FCM Token: $token");
+
     final user = FirebaseAuth.instance.currentUser;
     if (token != null && user != null) {
       await FirebaseFirestore.instance
@@ -70,7 +85,9 @@ class _RatingAppState extends State<RatingApp> {
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-            content: Text(message.notification?.title ?? 'New Notification')),
+          content: Text(message.notification?.title ?? 'New Notification'),
+          backgroundColor: Colors.blue,
+        ),
       );
     });
   }
@@ -84,15 +101,16 @@ class _RatingAppState extends State<RatingApp> {
         BlocProvider<RatingCubit>(create: (_) => RatingCubit()),
       ],
       child: MaterialApp(
-        title: 'User Rating',
+        title: 'User Rating App',
         themeMode: _isDarkMode ? ThemeMode.dark : ThemeMode.light,
         theme: ThemeData.light().copyWith(
           primaryColor: Colors.blue,
           scaffoldBackgroundColor: Colors.grey[100],
           cardTheme: CardThemeData(
-              elevation: 6,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16))),
+            elevation: 6,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          ),
         ),
         darkTheme: ThemeData.dark().copyWith(primaryColor: Colors.blueAccent),
         home:
@@ -121,13 +139,32 @@ class AuthWrapper extends StatelessWidget {
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
-              body: Center(child: CircularProgressIndicator()));
+            body: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text("Initializing..."),
+                ],
+              ),
+            ),
+          );
         }
+
+        if (snapshot.hasError) {
+          return Scaffold(
+            body: Center(child: Text("Error: ${snapshot.error}")),
+          );
+        }
+
         if (snapshot.hasData) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             Navigator.pushReplacementNamed(context, '/main');
           });
+          return const SizedBox.shrink();
         }
+
         return AuthPage(onThemeChanged: onThemeChanged);
       },
     );
